@@ -14,6 +14,8 @@ RUN wget -q https://mirrors.aliyun.com/golang/go${GO_VERSION}.linux-amd64.tar.gz
     ln -s /usr/local/go/bin/go /usr/local/bin/go && \
     go version
 
+RUN go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
+
 # Build gin-job
 WORKDIR /app
 # Copy the entire project structure to access templates
