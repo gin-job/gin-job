@@ -1,5 +1,7 @@
 package config
 
+import "os"
+
 type GinJobAuth struct {
 	Username string `json:"username" yaml:"username"`
 	Password string `json:"password" yaml:"password"`
@@ -12,9 +14,13 @@ type GinJobConfig struct {
 }
 
 func DefaultConfig() *GinJobConfig {
+	templatePath := os.Getenv("TEMPLATE_PATH")
+	if templatePath == "" {
+		templatePath = "../../templates/*"
+	}
 	return &GinJobConfig{
 		Port:         ":8080",
-		TemplatePath: "../../templates/",
+		TemplatePath: templatePath,
 		Auth: GinJobAuth{
 			Username: "admin",
 			Password: "gin-job",

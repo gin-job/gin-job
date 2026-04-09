@@ -26,7 +26,8 @@ RUN cd examples/simple && \
 
 # Final stage
 FROM ubuntu/mysql:8.0-22.04_beta
-ENV MYSQL_ROOT_PASSWORD=gin-job
+ENV MYSQL_ROOT_PASSWORD=gin-
+ENV TEMPLATE_PATH=/app/templates/*
 
 # Add Alibaba mirror source
 RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
@@ -37,7 +38,7 @@ RUN docker-entrypoint.sh
 
 WORKDIR /app
 # Copy gin-job from builder stage
-COPY --from=builder /app/gin-job /app/gin-job
+COPY --from=builder /app/examples/simple/gin-job /app/gin-job
 # Copy templates from builder stage
 COPY --from=builder /app/templates /app/templates/
 
