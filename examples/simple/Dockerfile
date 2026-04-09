@@ -29,7 +29,8 @@ FROM ubuntu/mysql:8.0-22.04_beta
 ENV MYSQL_ROOT_PASSWORD=gin-job
 
 # Add Alibaba mirror source
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+# RUN sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
 RUN apt-get update
 # Run MySQL entrypoint
 RUN docker-entrypoint.sh
