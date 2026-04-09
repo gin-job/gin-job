@@ -13,8 +13,8 @@ type GinJobConfig struct {
 
 func DefaultConfig() *GinJobConfig {
 	return &GinJobConfig{
-		Port:         ":9910",
-		TemplatePath: "../../templates/*",
+		Port:         ":8080",
+		TemplatePath: "../../templates/",
 		Auth: GinJobAuth{
 			Username: "admin",
 			Password: "gin-job",

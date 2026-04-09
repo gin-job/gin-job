@@ -1,0 +1,32 @@
+stages:
+  - build
+  - publish
+  - notice
+
+build-image:
+  stage: build
+  script:
+    - chmod +x ./scripts/build.sh
+    - ./scripts/build.sh
+  when: manual
+  only:
+    - master
+
+publish-image:
+  stage: publish
+  script:
+    - echo $CR_PAT | docker login ghcr.io -u liuhong1happy --password-stdin
+    - chmod +x ./scripts/publish.sh
+    - ./scripts/publish.sh
+  only:
+    - master
+
+notice:
+  stage: notice
+  script:
+    - chmod +x ./scripts/notice.sh
+    - ./scripts/notice.sh
+  when: always
+  allow_failure: true
+  only:
+    - master

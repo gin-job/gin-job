@@ -16,7 +16,7 @@ func main() {
 	// init logger
 	zapLogger, _ := zap.NewProduction()
 	// init db
-	dsn := "root:password@tcp(localhost:3306)/gin_job?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:gin-job@tcp(localhost:3306)/gin_job?charset=utf8mb4&parseTime=True&loc=Local"
 	gormDB, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		zapLogger.Fatal("数据库连接失败", zap.Error(err))

@@ -62,8 +62,17 @@ func (g *GinJobRouter) Start() {
 
 	// init router
 	r := gin.Default()
-	// TODO：需要代码审查
-	r.LoadHTMLGlob(config.TemplatePath)
+
+	if config.TemplatePath != "" {
+		// 判断文件是否存在
+		if _, err := os.Stat(config.TemplatePath); os.IsNotExist(err) {
+			logger.Error("template path not exist", zap.Error(err))
+			return
+		}
+		r.LoadHTMLGlob(config.TemplatePath + "/*")
+	} else {
+		r.LoadHTMLGlob("templates/*")
+	}
 
 	// register routes
 	if sch != nil && gormDB != nil {
