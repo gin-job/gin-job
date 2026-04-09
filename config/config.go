@@ -1,16 +1,26 @@
 package config
 
-import "os"
+import (
+	"os"
+
+	"gorm.io/gorm"
+)
 
 type GinJobAuth struct {
-	Username string `json:"username" yaml:"username"`
-	Password string `json:"password" yaml:"password"`
+	Username string
+	Password string
+}
+
+type GinJobGorm struct {
+	DSN    string
+	Config *gorm.Config
 }
 
 type GinJobConfig struct {
-	TemplatePath string     `json:"template_path" yaml:"template_path"`
-	Auth         GinJobAuth `json:"auth" yaml:"auth"`
-	Port         string     `json:"port" yaml:"port"`
+	TemplatePath string
+	Auth         GinJobAuth
+	Port         string
+	Gorm         GinJobGorm
 }
 
 func DefaultConfig() *GinJobConfig {
@@ -18,8 +28,14 @@ func DefaultConfig() *GinJobConfig {
 	if templatePath == "" {
 		templatePath = "../../templates/*"
 	}
+	gormConfig := &gorm.Config{}
+	dsn := "root:gin-job@tcp(localhost:3306)/gin_job?charset=utf8mb4&parseTime=True&loc=Local"
 	return &GinJobConfig{
-		Port:         ":8080",
+		Port: ":8080",
+		Gorm: GinJobGorm{
+			DSN:    dsn,
+			Config: gormConfig,
+		},
 		TemplatePath: templatePath,
 		Auth: GinJobAuth{
 			Username: "admin",

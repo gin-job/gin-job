@@ -128,3 +128,98 @@ After the application starts, you can manage tasks through the web interface:
 6. **Status Management**: Task status can be controlled through enable/disable interfaces
 
 Through the above workflow, you can define tasks in code and conveniently manage and trigger task execution on the web interface.
+
+## Configuration Instructions
+
+GinJob provides the following configuration options, which you can adjust as needed:
+
+### Configuration Structure
+
+```go
+type GinJobConfig struct {
+    TemplatePath string    // Template file path
+    Auth         GinJobAuth // Authentication information
+    Port         string     // Service port
+    Gorm         GinJobGorm // Database configuration
+}
+
+type GinJobAuth struct {
+    Username string // Login username
+    Password string // Login password
+}
+
+type GinJobGorm struct {
+    DSN    string      // Database connection string
+    Config *gorm.Config // GORM configuration
+}
+```
+
+### Default Configuration
+
+GinJob provides a default configuration that you can use directly:
+
+```go
+func DefaultConfig() *GinJobConfig {
+    templatePath := os.Getenv("TEMPLATE_PATH")
+    if templatePath == "" {
+        templatePath = "../../templates/*"
+    }
+    gormConfig := &gorm.Config{}
+    dsn := "root:gin-job@tcp(localhost:3306)/gin_job?charset=utf8mb4&parseTime=True&loc=Local"
+    return &GinJobConfig{
+        Port: ":8080",
+        Gorm: GinJobGorm{
+            DSN:    dsn,
+            Config: gormConfig,
+        },
+        TemplatePath: templatePath,
+        Auth: GinJobAuth{
+            Username: "admin",
+            Password: "gin-job",
+        },
+    }
+}
+```
+
+### Configuration Item Description
+
+| Configuration Item | Type | Default Value | Description |
+|-------------------|------|---------------|-------------|
+| TemplatePath | string | ../../templates/* | Template file path, can be overridden by the TEMPLATE_PATH environment variable |
+| Auth.Username | string | admin | Login username |
+| Auth.Password | string | gin-job | Login password |
+| Port | string | :8080 | Service port |
+| Gorm.DSN | string | root:gin-job@tcp(localhost:3306)/gin_job?charset=utf8mb4&parseTime=True&loc=Local | Database connection string |
+| Gorm.Config | *gorm.Config | &gorm.Config{} | GORM configuration object |
+
+### How to Use Configuration
+
+When initializing the GinJob router, you can pass in custom configuration:
+
+```go
+// Create custom configuration
+customConfig := &config.GinJobConfig{
+    Port: ":9090",
+    Auth: config.GinJobAuth{
+        Username: "custom",
+        Password: "custom-password",
+    },
+    Gorm: config.GinJobGorm{
+        DSN: "user:pass@tcp(localhost:3306)/custom_db?charset=utf8mb4&parseTime=True&loc=Local",
+    },
+}
+
+// Initialize router with configuration
+r := router.NewGinJobRouter(customConfig)
+r.SetJobList(jobList)
+r.Start()
+```
+
+If you don't pass in configuration, GinJob will use the default configuration:
+
+```go
+// Use default configuration
+r := router.NewGinJobRouter(nil)
+r.SetJobList(jobList)
+r.Start()
+```

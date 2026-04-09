@@ -73,7 +73,8 @@ jobList := []job.Job{
 }
 
 // init router
-r := router.NewGinJobRouter(zapLogger, gormDB, cfg, jobList)
+r := router.NewGinJobRouter(nil)
+r.SetJobList(jobList)
 r.Start()
 ```
 
@@ -82,14 +83,14 @@ r.Start()
 
 ![UI 界面](assets/images/ui.jpg)
 
-1. **创建任务**：
+1. **新建任务**：
    - 访问 Web 界面（通常是 http://localhost:8080）
-   - 点击 "创建任务" 按钮
+   - 点击 "新建任务" 按钮
    - 填写任务名称、选择处理器（ExampleJob）、设置 Cron 表达式、描述等
    - 点击 "保存" 按钮
 
 2. **启用任务**：
-   - 在任务列表中找到刚创建的任务
+   - 在任务列表中找到刚新建的任务
    - 点击 "启用" 按钮，任务会按照设定的 Cron 表达式自动执行
 
 3. **手动触发任务**：
@@ -128,3 +129,98 @@ r.Start()
 6. **状态管理**：可以通过启用/禁用接口控制任务状态
 
 通过以上流程，你可以在代码中定义任务，并在 Web 界面上方便地管理和触发任务执行。
+
+## 配置说明
+
+GinJob 提供了以下配置项，您可以根据需要进行调整：
+
+### 配置结构体
+
+```go
+type GinJobConfig struct {
+    TemplatePath string    // 模板文件路径
+    Auth         GinJobAuth // 认证信息
+    Port         string     // 服务端口
+    Gorm         GinJobGorm // 数据库配置
+}
+
+type GinJobAuth struct {
+    Username string // 登录用户名
+    Password string // 登录密码
+}
+
+type GinJobGorm struct {
+    DSN    string      // 数据库连接字符串
+    Config *gorm.Config // GORM 配置
+}
+```
+
+### 默认配置
+
+GinJob 提供了默认配置，您可以直接使用：
+
+```go
+func DefaultConfig() *GinJobConfig {
+    templatePath := os.Getenv("TEMPLATE_PATH")
+    if templatePath == "" {
+        templatePath = "../../templates/*"
+    }
+    gormConfig := &gorm.Config{}
+    dsn := "root:gin-job@tcp(localhost:3306)/gin_job?charset=utf8mb4&parseTime=True&loc=Local"
+    return &GinJobConfig{
+        Port: ":8080",
+        Gorm: GinJobGorm{
+            DSN:    dsn,
+            Config: gormConfig,
+        },
+        TemplatePath: templatePath,
+        Auth: GinJobAuth{
+            Username: "admin",
+            Password: "gin-job",
+        },
+    }
+}
+```
+
+### 配置项说明
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|-------|------|-------|------|
+| TemplatePath | string | ../../templates/* | 模板文件路径，可通过环境变量 TEMPLATE_PATH 覆盖 |
+| Auth.Username | string | admin | 登录用户名 |
+| Auth.Password | string | gin-job | 登录密码 |
+| Port | string | :8080 | 服务端口 |
+| Gorm.DSN | string | root:gin-job@tcp(localhost:3306)/gin_job?charset=utf8mb4&parseTime=True&loc=Local | 数据库连接字符串 |
+| Gorm.Config | *gorm.Config | &gorm.Config{} | GORM 配置对象 |
+
+### 如何使用配置
+
+在初始化 GinJob 路由器时，您可以传入自定义配置：
+
+```go
+// 创建自定义配置
+customConfig := &config.GinJobConfig{
+    Port: ":9090",
+    Auth: config.GinJobAuth{
+        Username: "custom",
+        Password: "custom-password",
+    },
+    Gorm: config.GinJobGorm{
+        DSN: "user:pass@tcp(localhost:3306)/custom_db?charset=utf8mb4&parseTime=True&loc=Local",
+    },
+}
+
+// 初始化路由器并传入配置
+r := router.NewGinJobRouter(customConfig)
+r.SetJobList(jobList)
+r.Start()
+```
+
+如果您不传入配置，GinJob 会使用默认配置：
+
+```go
+// 使用默认配置
+r := router.NewGinJobRouter(nil)
+r.SetJobList(jobList)
+r.Start()
+```

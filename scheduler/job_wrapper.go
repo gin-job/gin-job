@@ -84,7 +84,7 @@ func (w *jobWrapper) Run() {
 	jobInstance.LogContent = logContent
 
 	// Save job instance
-	if err := w.db.Save(jobInstance).Error; err != nil {
+	if err := w.db.Omit("created_at").Save(jobInstance).Error; err != nil {
 		w.log.Error("failed to save job run", zap.Error(err))
 	}
 

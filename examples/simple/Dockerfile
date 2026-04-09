@@ -34,10 +34,6 @@ RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y mysql-server   
 
-RUN service mysql start \
-    && mysql -u root -e "CREATE DATABASE IF NOT EXISTS gin_job;" \
-    && service mysql stop
-
 WORKDIR /app
 # Copy gin-job from builder stage
 COPY --from=builder /app/examples/simple/gin-job /app/gin-job

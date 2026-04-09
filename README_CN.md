@@ -18,8 +18,22 @@
 
 ## 快速开始
 
-1. 拷贝 `templates` 目录到项目
-2. 参考 `examples/simple/` 目录，配置数据库连接、定时任务定义等
+先初始化本地数据库：
+
+```bash
+docker run -it -d -p 3306:3306 \ 
+-e MYSQL_ROOT_PASSWORD=gin-job \
+-e MYSQL_DATABASE=gin_job \
+mysql:8.0.42
+```
+
+运行 gin-job 示例应用：
+
+`go run examples/simple/main.go`
+
+打开浏览器访问 UI 界面：
+
+`http://localhost:8080/ui/login`
 
 ## 如何参与贡献
 

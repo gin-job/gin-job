@@ -18,8 +18,22 @@ A task scheduling management tool based on the Gin framework, with a user-friend
 
 ## Quick Start
 
-1. Copy the `templates` directory to your project
-2. Refer to the `examples/simple/` directory to configure database connection, task definitions, etc.
+First, initialize the local database:
+
+```bash
+docker run -it -d -p 3306:3306 
+-e MYSQL_ROOT_PASSWORD=gin-job \
+-e MYSQL_DATABASE=gin_job \
+mysql:8.0.42
+```
+
+Run the gin-job example application:
+
+`go run examples/simple/main.go`
+
+Open the UI interface in your browser:
+
+`http://localhost:8080/ui/login`
 
 ## How to Contribute
 

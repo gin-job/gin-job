@@ -13,73 +13,72 @@ import (
 	"github.com/gin-job/gin-job/job"
 	"github.com/gin-job/gin-job/scheduler"
 	"go.uber.org/zap"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
-func NewGinJobRouter(
-	logger *zap.Logger,
-	gormDB *gorm.DB,
-	config *config.GinJobConfig,
-	jobList []job.Job,
-) *GinJobRouter {
+func NewGinJobRouter(cfg *config.GinJobConfig) *GinJobRouter {
+	if cfg == nil {
+		cfg = config.DefaultConfig()
+	}
+	logger, _ := zap.NewProduction()
+	gormDB, err := gorm.Open(mysql.Open(cfg.Gorm.DSN), cfg.Gorm.Config)
+	if err != nil {
+		logger.Fatal("数据库连接失败", zap.Error(err))
+	}
 	sch := scheduler.New(logger, gormDB)
+
 	return &GinJobRouter{
-		logger:  logger,
-		sch:     sch,
-		gormDB:  gormDB,
-		config:  config,
-		jobList: jobList,
+		logger:    logger,
+		scheduler: sch,
+		gormDB:    gormDB,
+		config:    cfg,
+		jobList:   []job.Job{},
 	}
 }
 
 type GinJobRouter struct {
-	logger  *zap.Logger
-	sch     *scheduler.Scheduler
-	gormDB  *gorm.DB
-	config  *config.GinJobConfig
-	jobList []job.Job
+	logger    *zap.Logger
+	scheduler *scheduler.Scheduler
+	gormDB    *gorm.DB
+	config    *config.GinJobConfig
+	jobList   []job.Job
 }
 
 func (g *GinJobRouter) Start() {
-	logger := g.logger
-	gormDB := g.gormDB
-	jobList := g.jobList
-	config := g.config
-	sch := g.sch
-
-	// init scheduler
-	if err := sch.SyncFromDB(); err != nil {
-		logger.Error("sync jobs from db failed", zap.Error(err))
-	}
 	// register jobs
-	for _, item := range jobList {
+	for _, item := range g.jobList {
 		if err := job.Register(item); err != nil {
-			logger.Error("register job failed", zap.Error(err))
+			g.logger.Error("register job failed", zap.Error(err))
 		}
 	}
+	// init scheduler
+	if err := g.scheduler.SyncFromDB(); err != nil {
+		g.logger.Error("sync jobs from db failed", zap.Error(err))
+	}
 	// start scheduler
-	sch.Start()
+	g.scheduler.Start()
 
 	// init router
 	r := gin.Default()
 
-	if config.TemplatePath != "" {
-		r.LoadHTMLGlob(config.TemplatePath)
+	if g.config.TemplatePath != "" {
+		r.LoadHTMLGlob(g.config.TemplatePath)
 	} else {
 		r.LoadHTMLGlob("templates/*")
 	}
 
 	// register routes
-	if sch != nil && gormDB != nil {
-		h := handler.NewJobHandler(sch, logger, gormDB)
+	if g.scheduler != nil && g.gormDB != nil {
+		h := handler.NewJobHandler(g.scheduler, g.logger, g.gormDB)
 		h.RegisterRoutes(r)
-		handler.NewUIRoutes(&config.Auth).RegisterRoutes(r)
+		handler.NewUIRoutes(&g.config.Auth).RegisterRoutes(r)
 	}
 
 	// start router
 	go func() {
-		if err := r.Run(config.Port); err != nil {
-			logger.Error("Job HTTP Server start failed", zap.Error(err))
+		if err := r.Run(g.config.Port); err != nil {
+			g.logger.Error("Job HTTP Server start failed", zap.Error(err))
 		}
 	}()
 
@@ -87,10 +86,14 @@ func (g *GinJobRouter) Start() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Job HTTP Server received exit signal, prepare to close")
+	g.logger.Info("Job HTTP Server received exit signal, prepare to close")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	sch.Stop(ctx)
-	logger.Info("Job Scheduler stopped successfully")
+	g.scheduler.Stop(ctx)
+	g.logger.Info("Job Scheduler stopped successfully")
+}
+
+func (g *GinJobRouter) SetJobList(jobList []job.Job) {
+	g.jobList = jobList
 }
