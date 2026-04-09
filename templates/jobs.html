@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>任务管理</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 24px; background: #f5f5f5; }
+    .container { max-width: 1400px; margin: 0 auto; background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background: #f8f9fa; font-weight: 600; }
+    tr:hover { background: #f8f9fa; }
+    button { padding: 6px 12px; margin-right: 6px; cursor: pointer; border: 1px solid #ddd; background: white; border-radius: 4px; }
+    button:hover { background: #f0f0f0; }
+    button.primary { background: #007bff; color: white; border-color: #007bff; }
+    button.primary:hover { background: #0056b3; }
+    button.danger { background: #dc3545; color: white; border-color: #dc3545; }
+    button.danger:hover { background: #c82333; }
+    .modal { display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
+    .dialog { background: #fff; padding: 24px; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .row { margin-bottom: 12px; }
+    label { display: block; font-size: 14px; font-weight: 500; color: #333; margin-bottom: 4px; }
+    input, textarea, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+    .actions { text-align: right; margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee; }
+    .cron-inputs { display: flex; gap: 8px; margin-top: 8px; }
+    .cron-inputs > div { flex: 1; }
+    .cron-inputs input { text-align: center; }
+    .cron-label { font-size: 12px; color: #666; margin-top: 4px; text-align: center; }
+    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .status-success { background: #d4edda; color: #155724; }
+    .status-error { background: #f8d7da; color: #721c24; }
+    .status-running { background: #d1ecf1; color: #0c5460; }
+    .status-disabled { background: #e2e3e5; color: #383d41; }
+    .runs-table { margin-top: 16px; }
+    .log-content { background: #f8f9fa; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+    .tab-container { border-bottom: 2px solid #ddd; margin-bottom: 16px; }
+    .tab { display: inline-block; padding: 8px 16px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { border-bottom-color: #007bff; color: #007bff; font-weight: 600; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+  <script>
+    let availableHandlers = {};
+
+    async function fetchJSON(url, opts) {
+      const res = await fetch(url, opts || {});
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      return res.json ? res.json() : null;
+    }
+
+    async function loadHandlers() {
+      try {
+        availableHandlers = await fetchJSON('/jobs/handlers');
+        const select = document.getElementById('f-handler');
+        if (select) {
+          select.innerHTML = '<option value="">请选择...</option>';
+          for (const [name, desc] of Object.entries(availableHandlers)) {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = `${name} - ${desc}`;
+            select.appendChild(option);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load handlers:', e);
+      }
+    }
+
+    async function loadJobs() {
+      const tbody = document.querySelector('#jobs-body');
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;">加载中...</td></tr>';
+      try {
+        const data = await fetchJSON('/jobs');
+        tbody.innerHTML = '';
+        if (data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#999;">暂无任务</td></tr>';
+          return;
+        }
+        data.forEach(j => {
+          const tr = document.createElement('tr');
+          const statusClass = j.status === 'ok' ? 'status-success' : j.status === 'error' ? 'status-error' : '';
+          const enabledClass = j.enabled ? '' : 'status-disabled';
+          tr.innerHTML = `
+            <td>${j.id}</td>
+            <td><strong>${j.name}</strong></td>
+            <td>${j.handler_name || ''}</td>
+            <td><code>${j.spec}</code></td>
+            <td><span class="status-badge ${j.enabled ? 'status-success' : 'status-disabled'}">${j.enabled ? '启用' : '停用'}</span></td>
+            <td><span class="status-badge ${statusClass}">${j.status || '-'}</span></td>
+            <td>${j.last_run_at ? new Date(j.last_run_at).toLocaleString('zh-CN') : '-'}</td>
+            <td>${j.description || '-'}</td>
+            <td>
+              <button onclick="showJobDetail('${j.name}')">详情</button>
+              <button onclick="showJobRuns('${j.name}')">历史</button>
+              <button onclick="triggerJob('${j.name}')">执行</button>
+              ${j.enabled ? `<button class="danger" onclick="disableJob('${j.name}')">停用</button>` : `<button onclick="enableJob('${j.name}')">启用</button>`}
+              <button onclick="openEdit('${j.name}', '${encodeURIComponent(j.handler_name||'')}', '${encodeURIComponent(j.spec||'')}', '${encodeURIComponent(j.description||'')}','${j.enabled}')">修改</button>
+              <button class="danger" onclick="deleteJob('${j.name}')">删除</button>
+            </td>`;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="9" style="color:red;text-align:center;padding:20px;">加载失败: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function showJobDetail(name) {
+      try {
+        const job = await fetchJSON(`/jobs/${encodeURIComponent(name)}`);
+        const box = document.getElementById('detail');
+        box.querySelector('.content').innerHTML = `<pre>${JSON.stringify(job, null, 2)}</pre>`;
+        box.style.display = 'flex';
+      } catch (e) {
+        alert('加载失败: ' + e.message);
+      }
+    }
+
+    async function showJobRuns(name) {
+      try {
+        const runs = await fetchJSON(`/jobs/${encodeURIComponent(name)}/runs?limit=50`);
+        const box = document.getElementById('runs-modal');
+        const tbody = box.querySelector('#runs-body');
+        tbody.innerHTML = '';
+        if (runs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">暂无执行记录</td></tr>';
+        } else {
+          runs.forEach(run => {
+            const tr = document.createElement('tr');
+            const statusClass = run.status === 'success' ? 'status-success' : run.status === 'failed' ? 'status-error' : 'status-running';
+            tr.innerHTML = `
+              <td>${run.id}</td>
+              <td><span class="status-badge ${statusClass}">${run.status}</span></td>
+              <td>${new Date(run.started_at).toLocaleString('zh-CN')}</td>
+              <td>${run.finished_at ? new Date(run.finished_at).toLocaleString('zh-CN') : '-'}</td>
+              <td>${run.duration_ms ? run.duration_ms + 'ms' : '-'}</td>
+              <td>
+                <button onclick="showRunLog('${name}', ${run.id})">查看日志</button>
+              </td>`;
+            tr.onclick = () => showRunDetail(name, run.id);
+            tr.style.cursor = 'pointer';
+            tbody.appendChild(tr);
+          });
+        }
+        box.querySelector('#runs-job-name').textContent = name;
+        box.style.display = 'flex';
+      } catch (e) {
+        alert('加载失败: ' + e.message);
+      }
+    }
+
+    async function showRunDetail(name, runId) {
+      try {
+        const run = await fetchJSON(`/jobs/${encodeURIComponent(name)}/runs/${runId}`);
+        const box = document.getElementById('run-detail-modal');
+        box.querySelector('#run-detail-content').innerHTML = `<pre>${JSON.stringify(run, null, 2)}</pre>`;
+        if (run.log_content) {
+          box.querySelector('#run-log-content').textContent = run.log_content;
+        } else {
+          box.querySelector('#run-log-content').textContent = '暂无日志';
+        }
+        box.style.display = 'flex';
+      } catch (e) {
+        alert('加载失败: ' + e.message);
+      }
+    }
+
+    async function showRunLog(name, runId) {
+      showRunDetail(name, runId);
+    }
+
+    function closeDetail(){ document.getElementById('detail').style.display = 'none'; }
+    function closeEdit(){ document.getElementById('edit').style.display = 'none'; }
+    function closeRuns(){ document.getElementById('runs-modal').style.display = 'none'; }
+    function closeRunDetail(){ document.getElementById('run-detail-modal').style.display = 'none'; }
+
+    function parseCronSpec(spec) {
+      if (!spec || spec.startsWith('@')) {
+        return ['', '', '', '', ''];
+      }
+      const parts = spec.trim().split(/\s+/);
+      if (parts.length >= 5) {
+        return [
+          parts[0] === '*' ? '' : (parts[0] || ''),
+          parts[1] === '*' ? '' : (parts[1] || ''),
+          parts[2] === '*' ? '' : (parts[2] || ''),
+          parts[3] === '*' ? '' : (parts[3] || ''),
+          parts[4] === '*' ? '' : (parts[4] || '')
+        ];
+      }
+      return ['', '', '', '', ''];
+    }
+
+    function buildCronSpec(minute, hour, day, month, weekday) {
+      const parts = [
+        minute === '' ? '*' : minute,
+        hour === '' ? '*' : hour,
+        day === '' ? '*' : day,
+        month === '' ? '*' : month,
+        weekday === '' ? '*' : weekday
+      ];
+      return parts.join(' ');
+    }
+
+    function setCronPreset(spec) {
+      const cronParts = parseCronSpec(spec);
+      const m = document.getElementById('edit');
+      m.querySelector('#f-minute').value = cronParts[0];
+      m.querySelector('#f-hour').value = cronParts[1];
+      m.querySelector('#f-day').value = cronParts[2];
+      m.querySelector('#f-month').value = cronParts[3];
+      m.querySelector('#f-weekday').value = cronParts[4];
+    }
+
+    function clearCronInputs() {
+      const m = document.getElementById('edit');
+      m.querySelector('#f-minute').value = '';
+      m.querySelector('#f-hour').value = '';
+      m.querySelector('#f-day').value = '';
+      m.querySelector('#f-month').value = '';
+      m.querySelector('#f-weekday').value = '';
+    }
+
+    function openCreate(){
+      const m = document.getElementById('edit');
+      m.querySelector('#f-name').value = '';
+      m.querySelector('#f-name').disabled = false;
+      m.querySelector('#f-handler').value = '';
+      clearCronInputs();
+      m.querySelector('#f-desc').value = '';
+      m.querySelector('#f-enabled').checked = true;
+      m.style.display = 'flex';
+    }
+
+    function openEdit(name, handlerName, spec, desc, enabled) {
+      const m = document.getElementById('edit');
+      m.querySelector('#f-name').value = name ? name : '';
+      m.querySelector('#f-name').disabled = !!name;
+      m.querySelector('#f-handler').value = decodeURIComponent(handlerName || '');
+      const cronParts = parseCronSpec(decodeURIComponent(spec || ''));
+      m.querySelector('#f-minute').value = cronParts[0];
+      m.querySelector('#f-hour').value = cronParts[1];
+      m.querySelector('#f-day').value = cronParts[2];
+      m.querySelector('#f-month').value = cronParts[3];
+      m.querySelector('#f-weekday').value = cronParts[4];
+      m.querySelector('#f-desc').value = decodeURIComponent(desc || '');
+      m.querySelector('#f-enabled').checked = (enabled === 'true');
+      m.style.display = 'flex';
+    }
+
+    async function submitEdit() {
+      const name = document.getElementById('f-name').value.trim();
+      const handlerName = document.getElementById('f-handler').value.trim();
+      const minute = document.getElementById('f-minute').value.trim();
+      const hour = document.getElementById('f-hour').value.trim();
+      const day = document.getElementById('f-day').value.trim();
+      const month = document.getElementById('f-month').value.trim();
+      const weekday = document.getElementById('f-weekday').value.trim();
+      const description = document.getElementById('f-desc').value.trim();
+      const enabled = document.getElementById('f-enabled').checked;
+      
+      if (!name) { alert('任务名称必填'); return; }
+      if (!handlerName) { alert('请选择任务处理器'); return; }
+      
+      const spec = buildCronSpec(minute, hour, day, month, weekday);
+      
+      try {
+        if (document.getElementById('f-name').disabled) {
+          // 更新
+          await fetchJSON(`/jobs/${encodeURIComponent(name)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ handler_name: handlerName, spec, enabled, description })
+          });
+        } else {
+          // 创建
+          await fetchJSON('/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, handler_name: handlerName, spec, enabled, description })
+          });
+        }
+        closeEdit();
+        await loadJobs();
+      } catch(e) {
+        alert('保存失败: ' + e.message);
+      }
+    }
+
+    async function enableJob(name){
+      await simplePost(`/jobs/${encodeURIComponent(name)}/enable`);
+    }
+    async function disableJob(name){
+      await simplePost(`/jobs/${encodeURIComponent(name)}/disable`);
+    }
+    async function triggerJob(name){
+      await simplePost(`/jobs/${encodeURIComponent(name)}/trigger`);
+    }
+    async function deleteJob(name){
+      if (!confirm(`确定要删除任务 "${name}" 吗？\n\n注意：删除后无法恢复，但执行历史记录会保留。`)) {
+        return;
+      }
+      try {
+        const r = await fetch(`/jobs/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (!r.ok) {
+          const text = await r.text();
+          throw new Error(text || `HTTP ${r.status}`);
+        }
+        await loadJobs();
+        alert('删除成功');
+      } catch(e){
+        alert('删除失败: ' + e.message);
+      }
+    }
+    async function simplePost(url){
+      try {
+        const r = await fetch(url, { method: 'POST' });
+        if (!r.ok) throw new Error(await r.text());
+        await loadJobs();
+        alert('操作成功');
+      } catch(e){
+        alert('操作失败: ' + e.message);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadHandlers();
+      await loadJobs();
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h2 style="margin: 0;">任务管理</h2>
+      <button onclick="logout()" style="background: #6c757d; color: white; border-color: #6c757d;">退出登录</button>
+    </div>
+    <div style="margin: 16px 0;">
+      <button class="primary" onclick="openCreate()">新建任务</button>
+      <button onclick="loadJobs()">刷新</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>任务名称</th>
+          <th>处理器</th>
+          <th>执行计划</th>
+          <th>状态</th>
+          <th>执行状态</th>
+          <th>最后执行时间</th>
+          <th>描述</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="jobs-body"></tbody>
+    </table>
+  </div>
+
+  <!-- 任务详情模态框 -->
+  <div id="detail" class="modal" onclick="if(event.target===this)closeDetail()">
+    <div class="dialog">
+      <h3>任务详情</h3>
+      <div class="content"></div>
+      <div class="actions"><button onclick="closeDetail()">关闭</button></div>
+    </div>
+  </div>
+
+  <!-- 编辑任务模态框 -->
+  <div id="edit" class="modal" onclick="if(event.target===this)closeEdit()">
+    <div class="dialog">
+      <h3>编辑任务</h3>
+      <div class="row">
+        <label>任务名称</label>
+        <input id="f-name" placeholder="唯一名称，如 my_task" />
+      </div>
+      <div class="row">
+        <label>任务处理器</label>
+        <select id="f-handler">
+          <option value="">请选择...</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>执行计划 (Cron 表达式)</label>
+        <div style="margin-bottom: 8px;">
+          <button type="button" onclick="setCronPreset('* * * * *')" style="font-size: 12px; padding: 4px 8px;">每分钟</button>
+          <button type="button" onclick="setCronPreset('0 * * * *')" style="font-size: 12px; padding: 4px 8px;">每小时</button>
+          <button type="button" onclick="setCronPreset('0 0 * * *')" style="font-size: 12px; padding: 4px 8px;">每天</button>
+          <button type="button" onclick="setCronPreset('0 0 * * 0')" style="font-size: 12px; padding: 4px 8px;">每周日</button>
+          <button type="button" onclick="clearCronInputs()" style="font-size: 12px; padding: 4px 8px;">清空</button>
+        </div>
+        <div style="font-size: 12px; color: #666; margin-bottom: 4px;">留空表示 *（任意值）</div>
+        <div class="cron-inputs">
+          <div><input type="text" id="f-minute" placeholder="分钟" /><div class="cron-label">分钟</div></div>
+          <div><input type="text" id="f-hour" placeholder="小时" /><div class="cron-label">小时</div></div>
+          <div><input type="text" id="f-day" placeholder="日期" /><div class="cron-label">日期</div></div>
+          <div><input type="text" id="f-month" placeholder="月份" /><div class="cron-label">月份</div></div>
+          <div><input type="text" id="f-weekday" placeholder="星期" /><div class="cron-label">星期</div></div>
+        </div>
+      </div>
+      <div class="row">
+        <label>描述</label>
+        <textarea id="f-desc" rows="3" placeholder="任务描述"></textarea>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="f-enabled" checked /> 启用</label>
+      </div>
+      <div class="actions">
+        <button onclick="closeEdit()">取消</button>
+        <button class="primary" onclick="submitEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 执行历史模态框 -->
+  <div id="runs-modal" class="modal" onclick="if(event.target===this)closeRuns()">
+    <div class="dialog">
+      <h3>执行历史 - <span id="runs-job-name"></span></h3>
+      <table class="runs-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>状态</th>
+            <th>开始时间</th>
+            <th>结束时间</th>
+            <th>耗时</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="runs-body"></tbody>
+      </table>
+      <div class="actions">
+        <button onclick="closeRuns()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 执行详情模态框 -->
+  <div id="run-detail-modal" class="modal" onclick="if(event.target===this)closeRunDetail()">
+    <div class="dialog">
+      <h3>执行详情</h3>
+      <div class="tab-container">
+        <div class="tab active" onclick="switchTab('detail')">详情</div>
+        <div class="tab" onclick="switchTab('log')">日志</div>
+      </div>
+      <div id="tab-detail" class="tab-content active">
+        <div id="run-detail-content"></div>
+      </div>
+      <div id="tab-log" class="tab-content">
+        <div class="log-content" id="run-log-content"></div>
+      </div>
+      <div class="actions">
+        <button onclick="closeRunDetail()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      if (tabName === 'detail') {
+        document.querySelector('.tab').classList.add('active');
+        document.getElementById('tab-detail').classList.add('active');
+      } else {
+        document.querySelectorAll('.tab')[1].classList.add('active');
+        document.getElementById('tab-log').classList.add('active');
+      }
+    }
+
+    async function logout() {
+      if (confirm('确定要退出登录吗？')) {
+        try {
+          await fetch('/ui/logout', { method: 'POST' });
+          window.location.href = '/ui/login';
+        } catch (e) {
+          console.error('退出登录失败:', e);
+          window.location.href = '/ui/login';
+        }
+      }
+    }
+  </script>
+</body>
+</html>
+
