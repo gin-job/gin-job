@@ -17,8 +17,10 @@ RUN mkdir -p /go/bin && \
 
 # Build gin-job
 WORKDIR /app
-COPY examples/simple .
-RUN go mod download && \
+# Copy the entire project structure to access templates
+COPY . .
+RUN cd examples/simple && \
+    go mod download && \
     go build -o gin-job main.go
 
 # Final stage
@@ -35,7 +37,7 @@ WORKDIR /app
 # Copy gin-job from builder stage
 COPY --from=builder /app/gin-job /app/gin-job
 # Copy templates from builder stage
-COPY ../../templates /app/templates/
+COPY --from=builder /app/templates /app/templates/
 
 EXPOSE 8080
 EXPOSE 3306
