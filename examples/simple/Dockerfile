@@ -4,7 +4,8 @@ ARG GO_VERSION=1.26.2
 
 # Add Alibaba mirror source
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
-RUN apt-get update
+# Update package list and install wget
+RUN apt-get update && apt-get install -y wget
 
 # Install Go
 RUN mkdir -p /go/bin && \
