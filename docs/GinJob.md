@@ -1,4 +1,4 @@
-# JobSchedule and JobInstance Detailed Explanation
+# gin-job
 
 ## Core Concepts
 
@@ -83,7 +83,7 @@ After the application starts, you can manage tasks through the web interface:
 ![UI Interface](assets/images/ui.jpg)
 
 1. **Create Task**:
-   - Access the web interface (usually http://localhost:8080)
+   - Access the web interface (usually http://localhost:8080/ui/login)
    - Click the "Create Task" button
    - Fill in the task name, select the handler (ExampleJob), set the Cron expression, description, etc.
    - Click the "Save" button
