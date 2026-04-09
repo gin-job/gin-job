@@ -50,4 +50,4 @@ EXPOSE 8080
 EXPOSE 3306
 EXPOSE 33060
 
-CMD ["/bin/bash", "/c", "/app/start.sh"]
+CMD ["/bin/bash", "-c", "/app/start.sh"]
