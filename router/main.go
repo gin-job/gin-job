@@ -49,7 +49,7 @@ func (g *GinJobRouter) Start() {
 
 	// init scheduler
 	if err := sch.SyncFromDB(); err != nil {
-		logger.Error("同步数据库任务失败", zap.Error(err))
+		logger.Error("sync jobs from db failed", zap.Error(err))
 	}
 	// register jobs
 	for _, item := range jobList {

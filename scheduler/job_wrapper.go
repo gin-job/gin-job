@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// jobWrapper 包装任务执行，记录执行历史和日志
+// jobWrapper record history and log
 type jobWrapper struct {
 	jobName string
 	jobID   uint
@@ -37,7 +37,7 @@ func (w *jobWrapper) Run() {
 	ctx := context.Background()
 	startTime := time.Now()
 
-	// 创建 jobInstance 记录
+	// Create job instance
 	jobInstance := &model.SysJobInstanceModel{
 		JobName:   w.jobName,
 		JobID:     w.jobID,
@@ -52,17 +52,17 @@ func (w *jobWrapper) Run() {
 
 	instanceID := jobInstance.BaseModel.Id
 
-	// 捕获日志
+	// Capture job execution log
 	logEntries := []string{}
 	logEntries = append(logEntries, fmt.Sprintf("[%s] 任务开始执行: %s", startTime.Format("2006-01-02 15:04:05"), w.jobName))
 
-	// 执行任务
+	// Run job
 	jobErr := w.jobImpl.Run(ctx)
 
 	finishTime := time.Now()
 	duration := finishTime.Sub(startTime)
 
-	// 更新 jobInstance 记录
+	// Update job instance
 	jobInstance.FinishedAt = &finishTime
 	jobInstance.DurationMs = duration.Milliseconds()
 
@@ -83,12 +83,12 @@ func (w *jobWrapper) Run() {
 	logContent = strings.Join(logEntries, "\n")
 	jobInstance.LogContent = logContent
 
-	// 保存 jobInstance
+	// Save job instance
 	if err := w.db.Save(jobInstance).Error; err != nil {
 		w.log.Error("failed to save job run", zap.Error(err))
 	}
 
-	// 更新 Job 表的状态
+	// Update Job record
 	var jobRecord model.SysJobScheduleModel
 	if err := w.db.Where("id = ?", w.jobID).First(&jobRecord).Error; err == nil {
 		jobRecord.LastRunAt = &finishTime
