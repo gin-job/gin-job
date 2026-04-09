@@ -25,16 +25,20 @@ RUN cd examples/simple && \
     go build -o gin-job main.go
 
 # Final stage
-FROM ubuntu/mysql:8.0-22.04_beta
-ENV MYSQL_ROOT_PASSWORD=gin-
+FROM ubuntu:22.04
+ENV MYSQL_ROOT_PASSWORD=gin-job
 ENV TEMPLATE_PATH=/app/templates/*
 
 # Add Alibaba mirror source
 RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
-# RUN sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
-RUN apt-get update
-# Run MySQL entrypoint
-RUN docker-entrypoint.sh
+
+RUN apt-get update && apt-get install -y mysql-server   
+
+COPY --from=builder /app/examples/simple/mysql.d/init.sql /tmp/init.sql
+
+RUN service mysql start \
+    && mysql -u root mysql < /tmp/init.sql \
+    && service mysql stop
 
 WORKDIR /app
 # Copy gin-job from builder stage
@@ -46,4 +50,4 @@ EXPOSE 8080
 EXPOSE 3306
 EXPOSE 33060
 
-CMD ["/app/gin-job"]
+CMD ["service", "mysql", "start", "&&", "/app/gin-job"]
