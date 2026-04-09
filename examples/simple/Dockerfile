@@ -12,16 +12,14 @@ RUN mkdir -p /go/bin && \
     wget https://golang.google.cn/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
     rm go${GO_VERSION}.linux-amd64.tar.gz && \
-    ln -s /usr/local/go/bin/go /go/bin && \
-    export PATH=/go/bin:$PATH && \
-    go version
+    export PATH=/usr/local/go/bin/:$PATH
 
 # Build gin-job
 WORKDIR /app
 # Copy the entire project structure to access templates
 COPY . .
 RUN cd examples/simple && \
-    go mod download && \
+    go mod download -x && \
     go build -o gin-job main.go
 
 # Final stage
