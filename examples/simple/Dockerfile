@@ -37,17 +37,19 @@ RUN apt-get update && apt-get install -y mysql-server
 COPY --from=builder /app/examples/simple/mysql.d/init.sql /tmp/init.sql
 
 RUN service mysql start \
-    && mysql -u root mysql < /tmp/init.sql \
+    && mysql -u root -e "CREATE DATABASE IF NOT EXISTS gin_job;" \
     && service mysql stop
 
 WORKDIR /app
 # Copy gin-job from builder stage
 COPY --from=builder /app/examples/simple/gin-job /app/gin-job
+COPY --from=builder /app/examples/simple/scripts/start.sh /app/start.sh
 # Copy templates from builder stage
 COPY --from=builder /app/templates /app/templates/
 
+RUN chmod +x /app/start.sh
 EXPOSE 8080
 EXPOSE 3306
 EXPOSE 33060
 
-CMD ["service", "mysql", "start", "&&", "/app/gin-job"]
+CMD ["/bin/bash", "/c", "/app/start.sh"]
