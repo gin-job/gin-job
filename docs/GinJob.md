@@ -73,7 +73,8 @@ jobList := []job.Job{
 }
 
 // init router
-r := router.NewGinJobRouter(zapLogger, gormDB, cfg, jobList)
+r := router.NewGinJobRouter(nil)
+r.SetJobList(jobList)
 r.Start()
 ```
 
