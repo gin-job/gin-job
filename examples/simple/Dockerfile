@@ -34,8 +34,6 @@ RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y mysql-server   
 
-COPY --from=builder /app/examples/simple/mysql.d/init.sql /tmp/init.sql
-
 RUN service mysql start \
     && mysql -u root -e "CREATE DATABASE IF NOT EXISTS gin_job;" \
     && service mysql stop
