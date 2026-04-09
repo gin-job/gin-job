@@ -8,11 +8,11 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
 RUN apt-get update && apt-get install -y wget
 
 # Install Go
-RUN mkdir -p /go/bin && \
-    wget https://golang.google.cn/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
+RUN wget https://golang.google.cn/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
     rm go${GO_VERSION}.linux-amd64.tar.gz && \
-    export PATH=/usr/local/go/bin/:$PATH
+    ln -s /usr/local/go/bin/go /usr/local/bin/go && \
+    go version
 
 # Build gin-job
 WORKDIR /app
