@@ -8,7 +8,6 @@ build-image:
   script:
     - chmod +x ./scripts/build.sh
     - ./scripts/build.sh
-  when: manual
   only:
     - master
 
