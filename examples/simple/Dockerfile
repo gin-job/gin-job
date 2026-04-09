@@ -46,4 +46,4 @@ EXPOSE 8080
 EXPOSE 3306
 EXPOSE 33060
 
-ENTRYPOINT ["gin-job"]
+CMD ["/app/gin-job"]
